@@ -1,1 +1,104 @@
+#!/bin/bash
+# @author Stefan Hettich <stefan-hettich@live.de>
+# @version 0.0.1
 
+# set action (default to status).
+ACTION=${1:-status}
+# set baudrate (default to 115200).
+BAUDRATE=${2:-115200}
+# set uart (default to ttyAMA0).
+UART=${3:-ttyAMA0}
+#UART2=serial0
+# set boot cmdline file (after reboot).
+CMDLINE=/boot/cmdline.txt
+# set proc cmdline file (live).
+CMDLINE_LIVE=/proc/cmdline.txt
+
+# check if cmdline-file exists.
+if [[ ! -f "$CMDLINE" ]]; then
+  echo "$CMDLINE is missing" 1>&2
+fi
+
+# get status in cmdline.
+CMDLINE_STATUS=disabled
+if [[ $(grep $UART "$CMDLINE") ]]; then
+  CMDLINE_STATUS=enabled
+fi
+#if [[ $(grep $UART2 "$CMDLINE") ]]; then
+#  CMDLINE_STATUS=enabled
+#fi
+
+# get live status.
+LIVE_STATUS=disabled
+if [[ $(grep $UART "$CMDLINE_LIVE") ]]; then
+  LIVE_STATUS=enabled
+fi
+#if [[ $(grep $UART2 "$CMDLINE_LIVE") ]]; then
+#  LIVE_STATUS=enabled
+#fi
+
+# check for wrong action.
+if [[ "$ACTION" != "enable" && "$ACTION" != "disable" && "$ACTION" != "status" ]]; then
+  echo "Wrong Action! Usage rpi-serial-console-jessie [enable/disable/status] <baudrate>" 1>&2
+  exit 1
+fi
+
+# handle status action.
+if [[ $ACTION == status ]]; then
+  # print status. check if status already set.
+  if [[ $CMDLINE_STATUS != $LIVE_STATUS ]]; then
+    echo "Serial console on /dev/$UART will be $CMDLINE_STATUS after the next reboot"
+  else
+    echo "Serial console on /dev/$UART is $CMDLINE_STATUS"
+  fi
+else
+  # check if user is root.
+  if [[ $EUID -ne 0 ]]; then
+    echo "Serial console can only be ${ACTION}d by root user" 1>&2
+    exit 1
+  fi
+  # check if serial console status already set.
+  if [[ ${ACTION}d == $CMDLINE_STATUS ]]; then
+    echo "Serial console is already ${ACTION}d"
+  else
+    # backup cmdline file.
+    if [[ ! -f "${CMDLINE}.bak" ]]; then
+      cp "$CMDLINE" "${CMDLINE}.bak"
+    fi
+
+    CMDLINE_CONTENTS=$(cat "$CMDLINE")
+    if [[ $ACTION == enable ]]; then
+      # add argument and write to cmdline file.
+      echo "$CMDLINE_CONTENTS console=$UART,$BAUDRATE kgdboc=$UART,$BAUDRATE" > "$CMDLINE"
+      sudo systemctl enable serial-getty@$UART.service
+    else
+      NEW_CMDLINE_CONTENTS=
+      for p in $CMDLINE_CONTENTS; do
+        # check if argument should be removed.
+        if [[ ${p%%=*} == console || ${p%%=*} == kgdboc ]]; then
+          if [[ $(echo ${p#*=} | grep $UART) ]]; then
+            continue
+          fi
+        fi
+        # add a space
+        if [[ "$NEW_CMDLINE_CONTENTS" != "" ]]; then
+          NEW_CMDLINE_CONTENTS="$NEW_CMDLINE_CONTENTS "
+        fi
+        # add content.
+        NEW_CMDLINE_CONTENTS="$NEW_CMDLINE_CONTENTS$p"
+      done
+      # write to cmdline file.
+      echo "$NEW_CMDLINE_CONTENTS" > "$CMDLINE"
+      sudo systemctl disable serial-getty@$UART.service
+    fi
+
+    sudo stty -F /dev/$UART $BAUDRATE
+
+    # check if reboot needed.
+    REBOOT_NEEDED=
+    if [[ ${ACTION}d != $LIVE_STATUS ]]; then
+      REBOOT_NEEDED=", a reboot is required to make this take effect"
+    fi
+    echo "Serial console has been ${ACTION}d$REBOOT_NEEDED"
+  fi
+fi
