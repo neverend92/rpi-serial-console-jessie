@@ -12,7 +12,7 @@ UART=${3:-ttyAMA0}
 # set boot cmdline file (after reboot).
 CMDLINE=/boot/cmdline.txt
 # set proc cmdline file (live).
-CMDLINE_LIVE=/proc/cmdline.txt
+CMDLINE_LIVE=/proc/cmdline
 
 # check if cmdline-file exists.
 if [[ ! -f "$CMDLINE" ]]; then
