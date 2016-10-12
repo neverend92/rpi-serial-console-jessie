@@ -1,5 +1,3 @@
-## Attention this one is still in development and NOT ready for use! Stay tuned!
-
 # rpi-serial-console-jessie
 Script to enable/disable the serial console on Raspberry Pi using Rasbian Jessie.
 
@@ -28,3 +26,4 @@ sudo rpi-serial-console-jessie [enable/disable] <baudrate>
 ## Troubleshooting
 This script is only tested on Rasbian Jessie, so it might not work on other systems.
 If you find a bug, please feel free to open an issue on that.
+Tested on Raspberry Pi 2 Model B and EnOcean Pi TCM310.
